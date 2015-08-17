@@ -1,51 +1,45 @@
 # ui-calendar directive [![Build Status](https://travis-ci.org/angular-ui/ui-calendar.svg?branch=master)](https://travis-ci.org/angular-ui/ui-calendar)
 
+[![Join the chat at https://gitter.im/angular-ui/ui-calendar](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/angular-ui/ui-calendar?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A complete AngularJS directive for the Arshaw FullCalendar.
 
 # Requirements
+
 - ([AngularJS](http://code.angularjs.org/1.2.1/angular.js))
 - ([fullcalendar.js 2.0 and it's dependencies](http://arshaw.com/fullcalendar/download/))
 - optional - ([gcal-plugin](http://arshaw.com/js/fullcalendar-1.5.3/fullcalendar/gcal.js))
 
-# Testing
-
-We use karma and grunt to ensure the quality of the code.
-
-    npm install -g grunt-cli
-    npm install
-    bower install
-    grunt
-
-# Minify
-
-    grunt minify
-
-
 # Usage
 
-We use [bower](http://twitter.github.com/bower/) for dependency management.  Add
+Using [bower](http://bower.io) run:
+
+    bower install --save angular-ui-calendar
+
+Alternatively you can add it to your `bower.json` like this:
 
     dependencies: {
         "angular-ui-calendar": "latest"
     }
 
-To your `components.json` file. Then run
+And then run
 
     bower install
 
 This will copy the ui-calendar files into your `components` folder, along with its dependencies. Load the script and style files in your application:
 
-    <link rel="stylesheet" href="bower_components/fullcalendar/fullcalendar.css"/>
-    <script type="text/javascript" src="bower_components/jquery/jquery.js"></script>
-    <script type="text/javascript" src="bower_components/jquery-ui/ui/jquery-ui.js"></script>
-    <script type="text/javascript" src="bower_components/angular/angular.js"></script>
+    <link rel="stylesheet" href="bower_components/fullcalendar/dist/fullcalendar.css"/>
+    <!-- jquery, moment, and angular have to get included before fullcalendar -->
+    <script type="text/javascript" src="bower_components/jquery/dist/jquery.min.js"></script>
+    <script type="text/javascript" src="bower_components/moment/min/moment.min.js"></script>
+    <script type="text/javascript" src="bower_components/angular/angular.min.js"></script>
     <script type="text/javascript" src="bower_components/angular-ui-calendar/src/calendar.js"></script>
-    <script type="text/javascript" src="bower_components/fullcalendar/fullcalendar.js"></script>
-    <script type="text/javascript" src="bower_components/fullcalendar/gcal.js"></script>
+    <script type="text/javascript" src="bower_components/fullcalendar/dist/fullcalendar.min.js"></script>
+    <script type="text/javascript" src="bower_components/fullcalendar/dist/gcal.js"></script>
 
 Add the calendar module as a dependency to your application module:
 
-    var myAppModule = angular.module('MyApp', ['ui.calendar'])
+    var app = angular.module('App', ['ui.calendar'])
 
 Apply the directive to your div elements. The calendar must be supplied an array of documented event sources to render itself:
 
@@ -112,8 +106,12 @@ If you need to automatically re-render other event data, you can use `calendar-w
        returns "" + event.price;
     }
 
-    <ui-calendar calendar-watch-event="extraEventSignature" ... >
+    <ui-calendar calendar-watch-event="extraEventSignature(event)" ... >
     // will now watch for price
+
+### Adding new events issue
+
+When adding new events to the calendar they can disappear when switching months. To solve this add `stick: true` to the event object being added to the scope.
 
 ## Watching the displayed date range of the calendar
 
@@ -131,9 +129,27 @@ in a service, instead of letting fullCalendar pull them via AJAX), you can add t
         }
     };
 
+# Minify
+
+    grunt minify
+
+# Local Server to test demo
+
+    grunt serve
+
+
 ## Documentation for the Calendar
 
 The calendar works alongside of all the documentation represented [here](http://arshaw.com/fullcalendar/docs)
 
 ## PR's R always Welcome
 Make sure that if a new feature is added, that the proper tests are created.
+
+# Testing
+
+We use karma and grunt to ensure the quality of the code.
+
+    npm install -g grunt-cli
+    npm install
+    bower install
+    grunt

@@ -11,43 +11,43 @@
 angular.module('ui.calendar', [])
   .constant('uiCalendarConfig', {calendars: {}})
   .controller('uiCalendarCtrl', ['$scope', 
-                                 '$timeout', 
                                  '$locale', function(
                                   $scope, 
-                                  $timeout, 
                                   $locale){
 
       var sources = $scope.eventSources,
           extraEventSignature = $scope.calendarWatchEvent ? $scope.calendarWatchEvent : angular.noop,
 
           wrapFunctionWithScopeApply = function(functionToWrap){
-              var wrapper;
+              return function(){
+                  // This may happen outside of angular context, so create one if outside.
 
-              if (functionToWrap){
-                  wrapper = function(){
-                      // This happens outside of angular context so we need to wrap it in a timeout which has an implied apply.
-                      // In this way the function will be safely executed on the next digest.
-
+                  if ($scope.$root.$$phase) {
+                      return functionToWrap.apply(this, arguments);
+                  } else {
                       var args = arguments;
-                      var _this = this;
-                      $timeout(function(){
-                        functionToWrap.apply(_this, args);
+                      var self = this;
+                      return $scope.$root.$apply(function(){
+                          return functionToWrap.apply(self, args);
                       });
-                  };
-              }
-
-              return wrapper;
+                  }
+              };
           };
 
       var eventSerialId = 1;
       // @return {String} fingerprint of the event object and its properties
       this.eventFingerprint = function(e) {
-        if (!e.__uiCalId) {
-          e.__uiCalId = eventSerialId++;
+        if (!e._id) {
+          e._id = eventSerialId++;
         }
+        
+        var extraSignature = extraEventSignature({event: e}) || '';
+        var start = moment.isMoment(e.start) ? e.start.unix() : (e.start ? moment(e.start).unix() : '');
+        var end =   moment.isMoment(e.end)   ? e.end.unix()   : (e.end   ? moment(e.end).unix()   : '');
+        
         // This extracts all the information we need from the event. http://jsperf.com/angular-calendar-events-fingerprint/3
-        return "" + e._id + (e.id || '') + (e.title || '') + (e.url || '') + (+e.start || '') + (+e.end || '') +
-          (e.allDay || '') + (e.className || '') + extraEventSignature(e) || '';
+        return "" + e._id + (e.id || '') + (e.title || '') + (e.url || '') + start + end +
+          (e.allDay || '') + (e.className || '') + extraSignature;
       };
 
       var sourceSerialId = 1, sourceEventsSerialId = 1;
@@ -74,7 +74,7 @@ angular.module('ui.calendar', [])
             // event source as object, ie extended form
             var extEvent = {};
             for(var key in source){
-              if(key !== '_uiCalId' && key !== 'events'){
+              if(key !== '_id' && key !== 'events'){
                  extEvent[key] = source[key];
               }
             }
@@ -226,7 +226,7 @@ angular.module('ui.calendar', [])
             options = null;
 
         function getOptions(){
-          var calendarSettings = attrs.uiCalendar ? scope.$parent.$eval(attrs.uiCalendar) : {},
+          var calendarSettings = attrs.uiCalendar ? scope.$eval(attrs.uiCalendar) : {},
               fullCalendarConfig;
 
           fullCalendarConfig = controller.getFullCalendarConfig(calendarSettings, uiCalendarConfig);
@@ -247,7 +247,7 @@ angular.module('ui.calendar', [])
           return JSON.stringify(options2);
         }
 
-        scope.destroy = function(){
+        scope.destroyCalendar = function(){
           if(calendar && calendar.fullCalendar){
             calendar.fullCalendar('destroy');
           }
@@ -258,39 +258,66 @@ angular.module('ui.calendar', [])
           }
         };
 
-        scope.init = function(){
+        scope.initCalendar = function(){
+          if (!calendar) {
+            calendar = angular.element(elm).html('');
+          }
           calendar.fullCalendar(options);
+          if(attrs.calendar) {
+            uiCalendarConfig.calendars[attrs.calendar] = calendar;
+          }          
         };
+        scope.$on('$destroy', function() {
+          scope.destroyCalendar();
+        });
 
         eventSourcesWatcher.onAdded = function(source) {
-          calendar.fullCalendar('addEventSource', source);
-          sourcesChanged = true;
+          if (calendar && calendar.fullCalendar) {
+            calendar.fullCalendar(options);
+            if (attrs.calendar) {
+                uiCalendarConfig.calendars[attrs.calendar] = calendar;
+            }
+            calendar.fullCalendar('addEventSource', source);
+            sourcesChanged = true;
+          }
         };
 
         eventSourcesWatcher.onRemoved = function(source) {
-          calendar.fullCalendar('removeEventSource', source);
-          sourcesChanged = true;
+          if (calendar && calendar.fullCalendar) {
+            calendar.fullCalendar('removeEventSource', source);
+            sourcesChanged = true;
+          }
         };
 
-        eventSourcesWatcher.onChanged = function(source) {
-          calendar.fullCalendar('refetchEvents');
-          sourcesChanged = true;
+        eventSourcesWatcher.onChanged = function() {
+          if (calendar && calendar.fullCalendar) {
+            calendar.fullCalendar('refetchEvents');
+            sourcesChanged = true;
+          }
+
         };
 
         eventsWatcher.onAdded = function(event) {
-          calendar.fullCalendar('renderEvent', event);
+          if (calendar && calendar.fullCalendar) {
+            calendar.fullCalendar('renderEvent', event, (event.stick ? true : false));
+          }
         };
 
         eventsWatcher.onRemoved = function(event) {
-          calendar.fullCalendar('removeEvents', function(e) { 
-            return e._id === event._id;
-          });
+          if (calendar && calendar.fullCalendar) {
+            calendar.fullCalendar('removeEvents', event._id);
+          }
         };
 
         eventsWatcher.onChanged = function(event) {
-          event._start = $.fullCalendar.moment(event.start);
-          event._end = $.fullCalendar.moment(event.end);
-          calendar.fullCalendar('updateEvent', event);
+          if (calendar && calendar.fullCalendar) {
+            var clientEvents = calendar.fullCalendar('clientEvents', event._id);
+            for (var i = 0; i < clientEvents.length; i++) {
+              var clientEvent = clientEvents[i];
+              clientEvent = angular.extend(clientEvent, event);
+              calendar.fullCalendar('updateEvent', clientEvent);
+            }
+          }
         };
 
         eventSourcesWatcher.subscribe(scope);
@@ -302,9 +329,13 @@ angular.module('ui.calendar', [])
           }
         });
 
-        scope.$watch(getOptions, function(newO,oldO){
-            scope.destroy();
-            scope.init();
+        scope.$watch(getOptions, function(newValue, oldValue) {
+          if(newValue !== oldValue) {
+            scope.destroyCalendar();
+            scope.initCalendar();
+          } else if((newValue && angular.isUndefined(calendar))) {
+            scope.initCalendar();
+          }
         });
       }
     };
